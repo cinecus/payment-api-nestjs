@@ -23,8 +23,11 @@ async function bootstrap() {
   const port = process.env.PORT || 5000
   const app = await NestFactory.create(AppModule);
   // app.useGlobalFilters(new HttpExceptionFilter())
-  // app.use(cookieParser())
-
+  app.use(cookieParser())
+  app.enableCors({
+    credentials:true,
+    origin:process.env.FRONTEND_URI
+  });
   app.use(morgan('combined',{stream:logStream}))
 
   await app.listen(port, () => {
