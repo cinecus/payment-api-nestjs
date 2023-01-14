@@ -75,7 +75,9 @@ export class PaymentService {
             }
             const account = await this.accountModel.findById(accountID)
             account.payment.push(payment[0].id)
+
             await account.save({ session: transactionSession })
+
             await transactionSession.commitTransaction();
         } catch (error) {
             await transactionSession.abortTransaction();
@@ -93,10 +95,17 @@ export class PaymentService {
         let paymentRefAccount
         try {
             transactionSession.startTransaction();
-
             //หารหัสผู้โอน
-            const refAccount = await this.accountModel.findById(transferDto.refAccount)
-            if(!refAccount){
+
+            console.log('first', mongoose.isValidObjectId(transferDto.refAccount))
+            let refAccount: AccountDocument
+            if (mongoose.isValidObjectId(transferDto.refAccount)) {
+                refAccount = await this.accountModel.findById(transferDto.refAccount)
+            } else {
+                refAccount = await this.accountModel.findOne({ username: transferDto.refAccount })
+            }
+
+            if (!refAccount) {
                 await transactionSession.abortTransaction();
                 return Promise.reject('ข้อมูลผู้รับเงินไม่พบผู้รับเงินในระบบ')
             }
@@ -108,7 +117,7 @@ export class PaymentService {
                     payment = await this.paymentModel.create([{
                         type: 'transfer',
                         account: accountID,
-                        refAccount: transferDto.refAccount,
+                        refAccount: refAccount.id,
                         amount: -transferDto.amount,
                         currentAmount: lastestPayment.currentAmount - transferDto.amount
                     }], { session: transactionSession })
@@ -126,26 +135,26 @@ export class PaymentService {
 
 
             //รับเงิน
-            const lastestPaymentRefAccount = await this.paymentModel.findOne({ account: new mongoose.Types.ObjectId(transferDto.refAccount) }).sort({ _id: -1 })
-            if(!!lastestPaymentRefAccount){
+            const lastestPaymentRefAccount = await this.paymentModel.findOne({ account: new mongoose.Types.ObjectId(refAccount.id) }).sort({ _id: -1 })
+            if (!!lastestPaymentRefAccount) {
                 paymentRefAccount = await this.paymentModel.create([{
                     type: 'receive',
-                    account: transferDto.refAccount,
+                    account: refAccount.id,
                     refAccount: accountID,
                     amount: transferDto.amount,
                     currentAmount: lastestPaymentRefAccount.currentAmount + transferDto.amount
                 }], { session: transactionSession })
-            }else{
+            } else {
                 paymentRefAccount = await this.paymentModel.create([{
                     type: 'receive',
-                    account: transferDto.refAccount,
+                    account: refAccount.id,
                     refAccount: accountID,
                     amount: transferDto.amount,
                     currentAmount: transferDto.amount
                 }], { session: transactionSession })
             }
 
-            
+
             refAccount.payment.push(paymentRefAccount[0].id)
             await refAccount.save({ session: transactionSession })
 
@@ -158,5 +167,9 @@ export class PaymentService {
             await transactionSession.endSession();
         }
         return payment
+    }
+
+    async statement(accountID: string) {
+        return await this.paymentModel.find({ account: new mongoose.Types.ObjectId(accountID) }).sort({ _id: -1 })
     }
 }

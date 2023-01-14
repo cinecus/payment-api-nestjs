@@ -22,6 +22,9 @@ export class Payment {
     @Prop({ required: true })
     currentAmount: number;
 
+    @Prop({ required: true, default: () => 'success' })
+    status: 'sucess' | 'pending' | 'failed'
+
     @Prop({ default: () => Date.now() + 60 * 60 * 1000 * 7 })
     createdDate: Date
 
